@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flux2-klein-int4"
+version = "0.1.0"
+description = "Int4-quantized FLUX.2-klein transformer inference runtime (GemLite / fused Triton / eager backends)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "torch>=2.4",
+    "triton>=3.0",
+    "safetensors>=0.4",
+    "diffusers>=0.37",
+]
+
+[project.optional-dependencies]
+# Production int4 GEMM backend (preferred). Without it the runtime falls back
+# to the bundled fused Triton kernel.
+gemlite = ["gemlite>=0.5"]
+
+[tool.setuptools.packages.find]
+include = ["flux2_klein_int4*"]
