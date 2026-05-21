@@ -51,22 +51,23 @@ CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
 ## 画像生成
 
 `example/generate.py` は int4 DiT を diffusers の `Flux2KleinPipeline` に差し込んで
-画像を生成します。テキストエンコーダ / VAE は既定で上流の重みを使うので、追加依存は
-`diffusers` だけです。
+画像を生成します。`--dit` を省略すると、パックされた int4 重みを
+[`kizuna-intelligence/FLUX.2-klein-4B-int4`](https://huggingface.co/kizuna-intelligence/FLUX.2-klein-4B-int4)
+から自動ダウンロードします。
 
 ```bash
 CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
-  python example/generate.py --dit /path/to/model.safetensors --outdir ./outputs
+  python example/generate.py --outdir ./outputs
 ```
 
-オプション `--te <dir>` に OneCompression で int4 量子化した Qwen3 テキストエンコーダの
-ディレクトリを渡すと、テキストエンコーダも int4 になり、`--offload` 併用で
-パイプライン全体のピーク VRAM が約 3.3 GB まで下がります（要 `onecompression`）。
-`--prompt` を複数回指定すれば任意のプロンプトで生成できます。
+`--int4-te` を付けると同じリポジトリから int4 の Qwen3 テキストエンコーダも取得して
+int4 で動かします（要 `onecompression`）。`--offload` 併用でパイプライン全体のピーク
+VRAM が約 3.3 GB まで下がります。`--prompt` を複数回指定すれば任意のプロンプトで生成可能。
+自分の重みを使う場合はローカルの `--dit` / `--te <dir>` を渡してください。
 
 ```bash
-python example/generate.py --dit model.safetensors --te ./flux2_te_int4 \
-  --offload --prompt "a calico cat astronaut on the moon, photorealistic"
+python example/generate.py --int4-te --offload \
+  --prompt "a calico cat astronaut on the moon, photorealistic"
 ```
 
 ---

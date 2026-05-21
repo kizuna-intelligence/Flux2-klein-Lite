@@ -4,16 +4,15 @@ Loads the packed-int4 ``Flux2Transformer2DModel`` with this runtime and plugs it
 into the diffusers ``Flux2KleinPipeline``. The text encoder and VAE default to
 the upstream bf16/fp16 weights, so the only extra dependency is ``diffusers``.
 
-Optionally, pass ``--te <dir>`` to also load an int4-quantized Qwen3 text encoder
-(produced by OneCompression). That needs ``onecompression`` importable and drops
-the whole-pipeline VRAM to ~3.3 GB.
+With no ``--dit``, the packed int4 DiT is auto-downloaded from ``--weights-repo``
+(default ``kizuna-intelligence/FLUX.2-klein-4B-int4``). Add ``--int4-te`` to also
+pull the int4 Qwen3 text encoder from the same repo (needs ``onecompression``
+importable); combined with ``--offload`` the whole-pipeline VRAM drops to ~3.3 GB.
 
-Run::
+Run (everything auto-downloaded)::
 
     CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \\
-    python example/generate.py \\
-        --dit /path/to/model.safetensors \\
-        --outdir ./outputs
+    python example/generate.py --int4-te --offload --outdir ./outputs
 
 Copyright 2025-2026 Kizuna Intelligence.
 """
@@ -64,9 +63,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default="black-forest-labs/FLUX.2-klein-4B",
                     help="HF repo (or local dir) for tokenizer / VAE / default text encoder")
-    ap.add_argument("--dit", required=True, help="packed int4 DiT safetensors")
+    ap.add_argument("--weights-repo", default="kizuna-intelligence/FLUX.2-klein-4B-int4",
+                    help="HF repo holding the packed int4 weights (transformer/, text_encoder/)")
+    ap.add_argument("--dit", default=None,
+                    help="packed int4 DiT safetensors (local). If omitted, downloaded from --weights-repo")
     ap.add_argument("--te", default=None,
-                    help="optional int4 Qwen3 text-encoder dir (needs onecompression)")
+                    help="local int4 Qwen3 text-encoder dir (needs onecompression)")
+    ap.add_argument("--int4-te", action="store_true",
+                    help="use the int4 text encoder from --weights-repo (auto-download)")
     ap.add_argument("--backend", default="auto", choices=["auto", "gemlite", "fused", "eager"])
     ap.add_argument("--outdir", default="./outputs")
     ap.add_argument("--steps", type=int, default=4)
@@ -85,16 +89,29 @@ def main() -> int:
 
     from diffusers import Flux2KleinPipeline
 
+    dit_path = args.dit
+    if dit_path is None:
+        from huggingface_hub import hf_hub_download
+        print(f"[generate] downloading int4 DiT from {args.weights_repo} ...", flush=True)
+        dit_path = hf_hub_download(args.weights_repo, "transformer/model.safetensors")
+
+    te_dir = args.te
+    if te_dir is None and args.int4_te:
+        from huggingface_hub import snapshot_download
+        print(f"[generate] downloading int4 text encoder from {args.weights_repo} ...", flush=True)
+        snap = snapshot_download(args.weights_repo, allow_patterns="text_encoder/*")
+        te_dir = os.path.join(snap, "text_encoder")
+
     # Run the whole pipeline in fp16: GemLite int4 requires fp16 I/O, and mixing
     # bf16 components triggers Half/BFloat16 mismatches at norm/conv boundaries.
     print(f"[generate] loading int4 DiT (backend={args.backend}) ...", flush=True)
-    dit = load_int4_transformer(args.dit, device="cuda:0", dtype="float16",
+    dit = load_int4_transformer(dit_path, device="cuda:0", dtype="float16",
                                 backend=args.backend, warmup=False)
 
     extra = {}
-    if args.te:
-        print(f"[generate] loading int4 text encoder from {args.te} ...", flush=True)
-        extra["text_encoder"] = _load_text_encoder(args.te)
+    if te_dir:
+        print(f"[generate] loading int4 text encoder from {te_dir} ...", flush=True)
+        extra["text_encoder"] = _load_text_encoder(te_dir)
 
     print("[generate] assembling Flux2KleinPipeline ...", flush=True)
     pipe = Flux2KleinPipeline.from_pretrained(

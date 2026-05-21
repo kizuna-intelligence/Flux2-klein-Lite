@@ -51,22 +51,22 @@ CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
 ## Image generation
 
 `example/generate.py` plugs the int4 DiT into the diffusers `Flux2KleinPipeline` and
-generates images. The text encoder / VAE default to the upstream weights, so the only extra
-dependency is `diffusers`.
+generates images. With no `--dit`, the packed int4 weights are auto-downloaded from
+[`kizuna-intelligence/FLUX.2-klein-4B-int4`](https://huggingface.co/kizuna-intelligence/FLUX.2-klein-4B-int4).
 
 ```bash
 CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
-  python example/generate.py --dit /path/to/model.safetensors --outdir ./outputs
+  python example/generate.py --outdir ./outputs
 ```
 
-Pass `--te <dir>` with a directory holding an int4-quantized Qwen3 text encoder (produced by
-OneCompression) to run the text encoder in int4 as well. Combined with `--offload`, the
-whole-pipeline peak VRAM drops to about 3.3 GB (requires `onecompression`). Repeat `--prompt`
-to generate arbitrary prompts.
+Add `--int4-te` to also pull the int4 Qwen3 text encoder from the same repo and run it in
+int4 (requires `onecompression`). Combined with `--offload`, the whole-pipeline peak VRAM
+drops to about 3.3 GB. Repeat `--prompt` for arbitrary prompts; pass a local `--dit` /
+`--te <dir>` to use your own weights.
 
 ```bash
-python example/generate.py --dit model.safetensors --te ./flux2_te_int4 \
-  --offload --prompt "a calico cat astronaut on the moon, photorealistic"
+python example/generate.py --int4-te --offload \
+  --prompt "a calico cat astronaut on the moon, photorealistic"
 ```
 
 ---
