@@ -1,36 +1,38 @@
 # Flux2-klein-Lite
 
-FLUX.2-klein-4B の transformer を **4-bit 量子化したまま推論する軽量ランタイム**です。
+*[日本語版 README はこちら / Japanese README](README.ja.md)*
 
-OneCompression で GPTQ 量子化・パックしたチェックポイントを読み込み、各 Linear を
-**int4 GEMM カーネル**で動かします。重みを bf16 に展開して VRAM に置くことも、forward
-ごとに Python で dequant することもありません。
+A lightweight runtime that runs the **FLUX.2-klein-4B transformer entirely in 4-bit**.
 
-3 つのバックエンドを選べます:
+It loads a checkpoint that OneCompression has GPTQ-quantized and packed, and runs each
+Linear with an **int4 GEMM kernel**. Weights are never expanded to bf16 in VRAM, and there
+is no per-forward Python dequant.
 
-- **`gemlite`**（既定 / 推奨）: [GemLite](https://github.com/mobiusml/gemlite) の
-  本番チューニング済み Triton int4 カーネル。GPTQ の scale / zero / int 重みを
-  *そのまま* パックするので、誤差は fp16 丸め相当（相対誤差 ~5e-4）。
-- **`fused`**: 同梱の自前融合 Triton カーネル（dequant + GEMM を 1 カーネルに融合）。
-  GemLite が入っていない環境向けフォールバック。
-- **`eager`**: ロード時に一度だけ bf16 へ dequant した素の `nn.Linear`。VRAM は
-  bf16 相当に戻るが、速度比較のベースライン用。
+Three backends are available:
+
+- **`gemlite`** (default / recommended): the production-tuned Triton int4 kernels from
+  [GemLite](https://github.com/mobiusml/gemlite). It packs the GPTQ scale / zero / int
+  weights *as-is*, so the error is at the level of fp16 rounding (relative error ~5e-4).
+- **`fused`**: the bundled in-house fused Triton kernel (dequant + GEMM fused into a single
+  kernel). A fallback for environments without GemLite.
+- **`eager`**: a plain `nn.Linear` dequantized to bf16 once at load time. VRAM goes back to
+  bf16 levels; useful only as a speed baseline.
 
 ---
 
-## インストール
+## Install
 
 ```bash
-pip install -e .            # ランタイム本体
-pip install -e ".[gemlite]" # GemLite バックエンド込み（推奨）
+pip install -e .            # runtime only
+pip install -e ".[gemlite]" # with the GemLite backend (recommended)
 ```
 
-## 使い方
+## Usage
 
 ```python
 from flux2_klein_lite import load_int4_transformer
 
-# backend は "auto"（既定: GemLite があれば GemLite、無ければ fused）/
+# backend: "auto" (default: GemLite if available, else fused) /
 # "gemlite" / "fused" / "eager"
 model = load_int4_transformer(
     "model.safetensors", device="cuda:0", dtype="bfloat16", backend="auto",
@@ -39,28 +41,28 @@ out = model(hidden_states=..., encoder_hidden_states=..., timestep=...,
             img_ids=..., txt_ids=..., return_dict=False)[0]
 ```
 
-ベンチ（バックエンド比較）:
+Benchmark (backend comparison):
 
 ```bash
 CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
   python example/bench.py /path/to/model.safetensors --backend gemlite --compare
 ```
 
-## 画像生成
+## Image generation
 
-`example/generate.py` は int4 DiT を diffusers の `Flux2KleinPipeline` に差し込んで
-画像を生成します。テキストエンコーダ / VAE は既定で上流の重みを使うので、追加依存は
-`diffusers` だけです。
+`example/generate.py` plugs the int4 DiT into the diffusers `Flux2KleinPipeline` and
+generates images. The text encoder / VAE default to the upstream weights, so the only extra
+dependency is `diffusers`.
 
 ```bash
 CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \
   python example/generate.py --dit /path/to/model.safetensors --outdir ./outputs
 ```
 
-オプション `--te <dir>` に OneCompression で int4 量子化した Qwen3 テキストエンコーダの
-ディレクトリを渡すと、テキストエンコーダも int4 になり、`--offload` 併用で
-パイプライン全体のピーク VRAM が約 3.3 GB まで下がります（要 `onecompression`）。
-`--prompt` を複数回指定すれば任意のプロンプトで生成できます。
+Pass `--te <dir>` with a directory holding an int4-quantized Qwen3 text encoder (produced by
+OneCompression) to run the text encoder in int4 as well. Combined with `--offload`, the
+whole-pipeline peak VRAM drops to about 3.3 GB (requires `onecompression`). Repeat `--prompt`
+to generate arbitrary prompts.
 
 ```bash
 python example/generate.py --dit model.safetensors --te ./flux2_te_int4 \
@@ -69,54 +71,53 @@ python example/generate.py --dit model.safetensors --te ./flux2_te_int4 \
 
 ---
 
-## 仕組み
+## How it works
 
-- **GemLite バックエンド** (`flux2_klein_lite/gemlite_int4_linear.py`): AutoGPTQ-v1
-  パック (qweight int32 / scales fp16 / qzeros int32 v1-offset) を unpack して
-  GemLite に直接 pack。HQQ 経由の再量子化（誤差 ~2%）と違い GPTQ 値を保存する。
-  入出力は fp16（GemLite 要件）、呼び出し側 dtype へキャストして返す。
-- **融合カーネル** (`flux2_klein_lite/fused_int4_linear.py`): 同じパック形式を直接
-  読み、K をパディングして Triton の `tl.dot` に流す。M バケットごとに起動設定を
-  キャッシュ。
-- **ローダ** (`flux2_klein_lite/loader.py`): メタデバイス上にモデルを構築 → 量子化層を
-  選択バックエンドに差し替え → 非量子化テンソルだけを実機に materialise。bf16 重み一式を
-  VRAM に展開しないので、ロード時のピークが低い。
-- **フォールバック**: groupsize≠32 / actorder などで int4 カーネルに乗らない層は、
-  ロード時に一度だけ eager dequant した `nn.Linear` になる（FLUX.2-klein では全 109 層が
-  カーネル対象）。
+- **GemLite backend** (`flux2_klein_lite/gemlite_int4_linear.py`): unpacks the AutoGPTQ-v1
+  pack (qweight int32 / scales fp16 / qzeros int32 v1-offset) and re-packs it directly into
+  GemLite. Unlike a re-quant through HQQ (~2% error), this preserves the GPTQ values. I/O is
+  fp16 (a GemLite requirement); outputs are cast back to the caller's dtype.
+- **Fused kernel** (`flux2_klein_lite/fused_int4_linear.py`): reads the same pack format
+  directly, pads K, and feeds Triton's `tl.dot`. Launch configs are cached per M bucket.
+- **Loader** (`flux2_klein_lite/loader.py`): builds the model on the meta device, swaps
+  quantized layers for the selected backend, then materializes only the non-quantized tensors
+  on-device. The full bf16 weight set is never expanded into VRAM, so the load-time peak is low.
+- **Fallback**: any layer that can't ride the int4 kernel (groupsize≠32, actorder, etc.)
+  becomes an `nn.Linear` eager-dequantized once at load time (for FLUX.2-klein all 109 layers
+  are kernel-eligible).
 
-## 計測（実機 RTX PRO 4000 Blackwell, FLUX.2-klein-4B, txt=128, 全 109 Linear int4）
+## Measurements (RTX PRO 4000 Blackwell, FLUX.2-klein-4B, txt=128, all 109 Linears int4)
 
-### ディスク / VRAM
+### Disk / VRAM
 
-| | bf16 (eager 展開) | fused int4 | **gemlite int4** |
+| | bf16 (eager expand) | fused int4 | **gemlite int4** |
 | --- | ---: | ---: | ---: |
 | safetensors | 7.7 GB | 2.1 GB | **2.1 GB** |
-| ロード後 VRAM (alloc) | 9.77 GB | 4.78 GB | **2.73 GB** |
-| forward ピーク VRAM (peak_res) | ~9.95 GB | 5.01 GB | **3.35 GB** |
+| VRAM after load (alloc) | 9.77 GB | 4.78 GB | **2.73 GB** |
+| forward peak VRAM (peak_res) | ~9.95 GB | 5.01 GB | **3.35 GB** |
 
-### forward レイテンシ（バックエンド別, 20 iter 平均）
+### Forward latency (per backend, mean of 20 iters)
 
-| 画像トークン | gemlite int4 | fused int4 | eager(bf16展開) |
+| image tokens | gemlite int4 | fused int4 | eager (bf16 expand) |
 | --- | ---: | ---: | ---: |
 | grid 8 (64 tok) | 47.1 ms | – | 38.3 ms |
 | grid 16 (256 tok) | 78.3 ms | – | 60.2 ms |
 | grid 24 (576 tok) | 130.6 ms | – | 102.1 ms |
 | grid 32 (1024 tok) | 211.5 ms | 241.5 ms | 152.5 ms |
 
-**注意（重要）**: FLUX の画像生成は大 M（数百〜千トークン）で **compute-bound**。
-weight-only int4 は重みを int4 に保ったまま dequant + GEMM するため、bf16 cuBLAS
-（重みを VRAM に展開済み）より速くはならない。この領域では GemLite で約 0.72〜0.81x、
-自前融合カーネルで約 0.63x。**int4 の利点は VRAM 約 1/3**（2.73GB vs 9.77GB）であって、
-速度ではない。小 M で memory-bound な TTS DiT とは逆の傾向。3 バックエンドの中では
-GemLite が最速かつ最小 VRAM なので、int4 を使うなら GemLite を推奨。VRAM に余裕があり
-速度最優先なら bf16。
+**Important note**: FLUX image generation is **compute-bound** at large M (hundreds to
+thousands of tokens). Weight-only int4 keeps the weights in int4 and does dequant + GEMM, so
+it cannot beat bf16 cuBLAS (which already has the weights expanded in VRAM). In this regime
+GemLite is about 0.72–0.81x and the in-house fused kernel about 0.63x. **int4's win here is
+~1/3 the VRAM** (2.73 GB vs 9.77 GB), not speed — the opposite of the small-M, memory-bound
+TTS DiT case. Of the three backends GemLite is both the fastest and the smallest in VRAM, so
+prefer GemLite when you want int4; if you have VRAM to spare and want maximum speed, use bf16.
 
-**warmup**: GemLite は初回ロード時に Triton autotune が走り 60〜90 秒かかる（11 シグネチャ）。
-これは 1 回限りのコストで、推論本体には乗らない。
+**Warmup**: on the first load GemLite runs a Triton autotune that takes 60–90 seconds (11
+signatures). This is a one-time cost and is not part of the inference itself.
 
-## ライセンス
+## License
 
-ランタイムのコードは MIT（Copyright 2025-2026 Fujitsu Ltd.）。
-量子化された **モデル重みは上流 FLUX.2-klein の配布ライセンスに従います** — 利用前に
-Black Forest Labs の配布条件を確認してください。
+The runtime code is MIT (Copyright 2025-2026 Fujitsu Ltd.).
+The quantized **model weights follow the upstream FLUX.2-klein distribution license** — check
+Black Forest Labs' terms before use.
