@@ -15,7 +15,7 @@ Usage::
     from flux2_klein_lite import load_int4_transformer
     model = load_int4_transformer("model.safetensors", device="cuda:0")
 
-Copyright 2025-2026 Fujitsu Ltd.
+Copyright 2025-2026 Kizuna Intelligence.
 """
 from __future__ import annotations
 

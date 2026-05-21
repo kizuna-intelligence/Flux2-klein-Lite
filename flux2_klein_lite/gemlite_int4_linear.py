@@ -7,7 +7,7 @@ helper, this packs OneCompression's *exact* GPTQ scale / zero / int weights
 directly, so the dequantized result matches the GPTQ checkpoint to fp16
 rounding (~5e-4 relative error) instead of re-quantizing.
 
-Copyright 2025-2026 Fujitsu Ltd.
+Copyright 2025-2026 Kizuna Intelligence.
 """
 from __future__ import annotations
 

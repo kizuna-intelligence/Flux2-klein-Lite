@@ -15,7 +15,7 @@ Run::
         --dit /path/to/model.safetensors \\
         --outdir ./outputs
 
-Copyright 2025-2026 Fujitsu Ltd.
+Copyright 2025-2026 Kizuna Intelligence.
 """
 from __future__ import annotations
 

@@ -118,19 +118,8 @@ signatures). This is a one-time cost and is not part of the inference itself.
 
 ## License
 
-The original source code in this repository is MIT licensed
-(Copyright 2025-2026 Fujitsu Ltd.).
+MIT (Copyright 2025-2026 Kizuna Intelligence).
+`flux2_klein_lite/quant_utils.py` is vendored from OneCompression and is
+Copyright 2025-2026 Fujitsu Ltd. (also MIT).
 
-This runtime does not stand alone — it depends on, and at runtime instantiates,
-third-party software that retains its own license:
-
-- **diffusers** (Apache-2.0, Hugging Face) — provides the `Flux2Transformer2DModel`
-  architecture and config that this runtime loads and quantizes.
-- **GemLite** (Apache-2.0, MobiusML) — the int4 GEMM kernels used by the `gemlite`
-  backend; this repo only converts the pack format and calls into it.
-- **PyTorch / Triton** — runtime dependencies.
-
-The int4 packing format and dequant scheme follow the GPTQ / AutoGPTQ-v1 convention.
-
-The quantized **model weights follow the upstream FLUX.2-klein distribution license** —
-check Black Forest Labs' terms before use.
+The **model weights follow the upstream FLUX.2-klein license** (Black Forest Labs).

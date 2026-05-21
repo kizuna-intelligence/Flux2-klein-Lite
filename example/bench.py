@@ -8,7 +8,7 @@ Run::
     CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=0 \\
     python example/bench.py /path/to/model.safetensors --compare
 
-Copyright 2025-2026 Fujitsu Ltd.
+Copyright 2025-2026 Kizuna Intelligence.
 """
 from __future__ import annotations
 
