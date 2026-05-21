@@ -26,7 +26,7 @@ import time
 
 import torch
 
-from flux2_klein_int4 import load_int4_transformer
+from flux2_klein_lite import load_int4_transformer
 
 DEFAULT_PROMPTS = [
     ("cyberpunk_market",

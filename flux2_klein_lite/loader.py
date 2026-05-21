@@ -12,7 +12,7 @@ shapes) fall back to an eager-dequant ``nn.Linear`` built once at load time.
 
 Usage::
 
-    from flux2_klein_int4 import load_int4_transformer
+    from flux2_klein_lite import load_int4_transformer
     model = load_int4_transformer("model.safetensors", device="cuda:0")
 
 Copyright 2025-2026 Fujitsu Ltd.
@@ -236,7 +236,7 @@ def load_int4_transformer(
             raise RuntimeError(f"parameter left on meta device: {n}")
 
     model.eval()
-    print(f"[flux2_klein_int4] loaded {len(quant_layers)} int4 layers "
+    print(f"[flux2_klein_lite] loaded {len(quant_layers)} int4 layers "
           f"(gemlite={gemlite_n}, fused={fused_n}, eager={eager_n}) on {dev}")
 
     if warmup and dev.type == "cuda":
@@ -249,6 +249,6 @@ def load_int4_transformer(
             for layer in seen.values():
                 layer.warmup(m_values=warmup_m_values)
             torch.cuda.synchronize(dev)
-            print(f"[flux2_klein_int4] warmup {(time.perf_counter()-t0)*1000:.0f} ms "
+            print(f"[flux2_klein_lite] warmup {(time.perf_counter()-t0)*1000:.0f} ms "
                   f"({len(seen)} unique signatures)")
     return model

@@ -1,4 +1,4 @@
-# FLUX.2-klein-int4
+# Flux2-klein-Lite
 
 FLUX.2-klein-4B の transformer を **4-bit 量子化したまま推論する軽量ランタイム**です。
 
@@ -28,7 +28,7 @@ pip install -e ".[gemlite]" # GemLite バックエンド込み（推奨）
 ## 使い方
 
 ```python
-from flux2_klein_int4 import load_int4_transformer
+from flux2_klein_lite import load_int4_transformer
 
 # backend は "auto"（既定: GemLite があれば GemLite、無ければ fused）/
 # "gemlite" / "fused" / "eager"
@@ -71,14 +71,14 @@ python example/generate.py --dit model.safetensors --te ./flux2_te_int4 \
 
 ## 仕組み
 
-- **GemLite バックエンド** (`flux2_klein_int4/gemlite_int4_linear.py`): AutoGPTQ-v1
+- **GemLite バックエンド** (`flux2_klein_lite/gemlite_int4_linear.py`): AutoGPTQ-v1
   パック (qweight int32 / scales fp16 / qzeros int32 v1-offset) を unpack して
   GemLite に直接 pack。HQQ 経由の再量子化（誤差 ~2%）と違い GPTQ 値を保存する。
   入出力は fp16（GemLite 要件）、呼び出し側 dtype へキャストして返す。
-- **融合カーネル** (`flux2_klein_int4/fused_int4_linear.py`): 同じパック形式を直接
+- **融合カーネル** (`flux2_klein_lite/fused_int4_linear.py`): 同じパック形式を直接
   読み、K をパディングして Triton の `tl.dot` に流す。M バケットごとに起動設定を
   キャッシュ。
-- **ローダ** (`flux2_klein_int4/loader.py`): メタデバイス上にモデルを構築 → 量子化層を
+- **ローダ** (`flux2_klein_lite/loader.py`): メタデバイス上にモデルを構築 → 量子化層を
   選択バックエンドに差し替え → 非量子化テンソルだけを実機に materialise。bf16 重み一式を
   VRAM に展開しないので、ロード時のピークが低い。
 - **フォールバック**: groupsize≠32 / actorder などで int4 カーネルに乗らない層は、

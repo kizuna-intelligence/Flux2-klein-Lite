@@ -1,4 +1,4 @@
-"""flux2_klein_int4 — fast int4 inference runtime for FLUX.2-klein.
+"""flux2_klein_lite — fast int4 inference runtime for FLUX.2-klein.
 
 Loads OneCompression-packed int4 FLUX.2 transformer checkpoints and runs each
 Linear with an int4 GEMM kernel (no per-call weight unpacking). Three backends:

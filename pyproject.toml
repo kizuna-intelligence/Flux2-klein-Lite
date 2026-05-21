@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "flux2-klein-int4"
+name = "flux2-klein-lite"
 version = "0.1.0"
 description = "Int4-quantized FLUX.2-klein transformer inference runtime (GemLite / fused Triton / eager backends)."
 readme = "README.md"
@@ -22,4 +22,4 @@ dependencies = [
 gemlite = ["gemlite>=0.5"]
 
 [tool.setuptools.packages.find]
-include = ["flux2_klein_int4*"]
+include = ["flux2_klein_lite*"]
