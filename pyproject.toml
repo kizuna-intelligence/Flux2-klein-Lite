@@ -9,10 +9,11 @@ description = "Int4-quantized FLUX.2-klein transformer inference runtime (GemLit
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+# The int4 kernels, GPTQ unpack/dequant, backend selection and generic loader
+# come from the shared onecomp-runtime package (which pulls torch/triton/
+# safetensors transitively). This repo adds only the FLUX.2 model glue.
 dependencies = [
-    "torch>=2.4",
-    "triton>=3.0",
-    "safetensors>=0.4",
+    "onecomp-runtime @ git+https://github.com/kizuna-intelligence/onecompression-runtime@main",
     "diffusers>=0.37",
     "huggingface-hub>=0.24",
 ]
@@ -20,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 # Production int4 GEMM backend (preferred). Without it the runtime falls back
 # to the bundled fused Triton kernel.
-gemlite = ["gemlite>=0.5"]
+gemlite = ["onecomp-runtime[gemlite] @ git+https://github.com/kizuna-intelligence/onecompression-runtime@main"]
 
 [tool.setuptools.packages.find]
 include = ["flux2_klein_lite*"]
